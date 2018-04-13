@@ -1,0 +1,1 @@
+"WardrobeItemFetcher.exe" -i "D:\Path\To\Assets" -o "D:\Path\To\wearables.json.patch" -p --overwrite
