@@ -31,7 +31,7 @@ namespace WardrobeItemFetcher
 
             fileFetcher.OnFileFound += (file =>
             {
-                HandleFile(file, wearables);
+                HandleFile(directory, file, wearables);
             });
 
             fileFetcher.Fetch(directory, true);
@@ -68,7 +68,7 @@ namespace WardrobeItemFetcher
 
             fileFetcher.OnFileFound += (file =>
             {
-                HandleFile(file, wearables);
+                HandleFile(directory, file, wearables);
             });
 
             fileFetcher.Fetch(directory, true);
@@ -97,14 +97,14 @@ namespace WardrobeItemFetcher
             }
         }
 
-        private static void HandleFile(FileInfo file, Dictionary<WearableType, JArray> wearables)
+        private static void HandleFile(DirectoryInfo assetDir, FileInfo file, Dictionary<WearableType, JArray> wearables)
         {
             try
             {
                 JObject wearable = JObject.Parse(File.ReadAllText(file.FullName));
 
                 WearableType wearableType = GetWearableType(file.Extension);
-                wearable = WearableConverter.Convert(wearable, wearableType);
+                wearable = WearableConverter.Convert(wearable, wearableType, FileFetcher.AssetPath(assetDir.FullName, file.FullName), file.Name);
 
                 wearables[wearableType].Add(wearable);
             }
