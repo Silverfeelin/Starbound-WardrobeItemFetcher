@@ -13,8 +13,15 @@ namespace WardrobeItemFetcher.Fetcher
         /// </summary>
         public ISet<string> Extensions { get; set; }
 
-        public event ItemFound OnItemFound;
+        /// <summary>
+        /// Invoked when calling <see cref="Fetch"/> for every item found matching any extension in <see cref="Extensions"/>.
+        /// </summary>
+        public event ItemFoundHandler OnItemFound;
         
+        /// <summary>
+        /// Fetches all items in the given pak.
+        /// </summary>
+        /// <param name="pakPath">File path to pak.</param>
         public void Fetch(string pakPath)
         {
             using (FileStream fs = File.Open(pakPath, FileMode.Open))

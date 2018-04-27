@@ -5,8 +5,6 @@ using System.Linq;
 
 namespace WardrobeItemFetcher.Fetcher
 {
-    public delegate void EntryHandler(ZipArchiveEntry entry);
-
     public class ArchiveFetcher : IFetcher
     {
         /// <summary>
@@ -15,7 +13,10 @@ namespace WardrobeItemFetcher.Fetcher
         /// </summary>
         public ISet<string> Extensions { get; set; }
         
-        public event ItemFound OnItemFound;
+        /// <summary>
+        /// Invoked when calling <see cref="Fetch"/> for every zip entry found matching any extension in <see cref="Extensions"/>.
+        /// </summary>
+        public event ItemFoundHandler OnItemFound;
 
         /// <summary>
         /// Returns the (asset path) for a file.
@@ -70,8 +71,12 @@ namespace WardrobeItemFetcher.Fetcher
                 }
             }
         }
-
-
+        
+        /// <summary>
+        /// Reads the zip archive entry as a text file.
+        /// </summary>
+        /// <param name="entry">Archive entry to read.</param>
+        /// <returns>Text from file.</returns>
         private string ReadEntry(ZipArchiveEntry entry)
         {
             using (var stream = entry.Open())

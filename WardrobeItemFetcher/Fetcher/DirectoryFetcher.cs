@@ -11,8 +11,11 @@ namespace WardrobeItemFetcher.Fetcher
         /// Only lowercase entries without a dot should be used in this set (i.e. "chest").
         /// </summary>
         public ISet<string> Extensions { get; set; }
-        
-        public event ItemFound OnItemFound;
+
+        /// <summary>
+        /// Invoked when calling <see cref="Fetch"/> for every file found matching any extension in <see cref="Extensions"/>.
+        /// </summary>
+        public event ItemFoundHandler OnItemFound;
 
         /// <summary>
         /// Returns the (asset path) for a file.

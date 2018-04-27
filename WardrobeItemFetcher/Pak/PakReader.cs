@@ -24,11 +24,21 @@ namespace WardrobeItemFetcher.Pak
     {
         private static readonly CultureInfo CULTURE = CultureInfo.InvariantCulture;
         
+        /// <summary>
+        /// Creates a new pak reader, which sets the current culture info to a culture-independent one.
+        /// .. I don't really know what that's being used for.
+        /// </summary>
         public PakReader()
         {
             System.Threading.Thread.CurrentThread.CurrentCulture = CULTURE;
         }
 
+        /// <summary>
+        /// Reads the pak file from the reader.
+        /// Reader stream position does not matter.
+        /// </summary>
+        /// <param name="reader">Opened binary reader.</param>
+        /// <returns>Data in pak file.</returns>
         public PakData Read(BinaryReader reader)
         {
             // Read index

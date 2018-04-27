@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using CommandLine;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -113,6 +112,11 @@ namespace WardrobeItemFetcher
             Console.WriteLine("Done!");
         }
 
+        /// <summary>
+        /// Confirms the input path, and errors with exit code 1 if it's invalid.
+        /// </summary>
+        /// <param name="path">Input path.</param>
+        /// <param name="type">Type of input.</param>
         private static void ConfirmInput(string path, ContentType type)
         {
             // Confirm input
@@ -142,6 +146,11 @@ namespace WardrobeItemFetcher
             }
         }
 
+        /// <summary>
+        /// Confirms the output file path, and errors with exit code 1 if it's invalid.
+        /// </summary>
+        /// <param name="path">Output file path.</param>
+        /// <param name="canOverwrite">Can the file be overwritten?</param>
         private static void ConfirmOutput(string path, bool canOverwrite)
         {
             FileInfo outputFile = new FileInfo(path);
@@ -167,6 +176,11 @@ namespace WardrobeItemFetcher
 
         }
 
+        /// <summary>
+        /// Exits with an error code after writing a message.
+        /// </summary>
+        /// <param name="message">Message to write.</param>
+        /// <param name="exitCode">Exit code.</param>
         private static void Exit(string message, int exitCode = 0)
         {
             Console.WriteLine(message);
