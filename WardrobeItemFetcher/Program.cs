@@ -5,12 +5,13 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 
 namespace WardrobeItemFetcher
 {
     class Options
     {
-        [Option('i', "input", Required = true, HelpText = "Asset directory to search in.")]
+        [Option('i', "input", Required = true, HelpText = "Asset directory or Zip file to search in.")]
         public string Directory { get; set; }
 
         [Option('o', "output", Required = true, HelpText = "Output file.")]
@@ -40,14 +41,21 @@ namespace WardrobeItemFetcher
         static void Run(Options options)
         {
             Program.options = options;
-
+            
             rootDirectory = new DirectoryInfo(options.Directory);
             FileInfo outputFile = new FileInfo(options.OutputFile);
+            bool isZip = rootDirectory.FullName.EndsWith(".zip");
 
             // Check paths.
-            if (!rootDirectory.Exists)
+            if (!isZip && !rootDirectory.Exists)
             {
                 Exit($"Error: Asset directory '{rootDirectory.FullName}' does not exist.", 1);
+                return;
+            }
+
+            if (isZip && !File.Exists(rootDirectory.FullName))
+            {
+                Exit($"Error: Zip file '{rootDirectory.FullName}' does not exist.", 1);
                 return;
             }
             
@@ -84,7 +92,17 @@ namespace WardrobeItemFetcher
             JToken output;
             try
             {
-                output = options.Patch ? (JToken)WardrobeItemFetcher.CreatePatch(rootDirectory) : WardrobeItemFetcher.CreateObject(rootDirectory);
+                if (isZip)
+                {
+                    using (ZipArchive archive = ZipFile.OpenRead(rootDirectory.FullName))
+                    {
+                        output = options.Patch ? (JToken)WardrobeItemFetcher.CreatePatch(archive) : WardrobeItemFetcher.CreateObject(archive);
+                    }
+                }
+                else
+                {
+                    output = options.Patch ? (JToken)WardrobeItemFetcher.CreatePatch(rootDirectory) : WardrobeItemFetcher.CreateObject(rootDirectory);
+                }
             }
             catch (Exception exc)
             {
