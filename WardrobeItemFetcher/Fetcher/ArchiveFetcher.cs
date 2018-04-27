@@ -56,6 +56,7 @@ namespace WardrobeItemFetcher.Fetcher
                 return name == "_metadata" || name == ".metadata";
             }).FirstOrDefault();
             string root = metadata != null ? Path.GetDirectoryName(metadata.FullName) : "/";
+            if (string.IsNullOrWhiteSpace(root)) root = "/";
 
             foreach (ZipArchiveEntry entry in archive.Entries)
             {
