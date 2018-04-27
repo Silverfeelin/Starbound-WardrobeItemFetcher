@@ -28,11 +28,15 @@ namespace WardrobeItemFetcher
         /// <param name="fetcher">Item fetcher.</param>
         /// <param name="path">Path to file or directory to fetch from.</param>
         /// <returns>Wearables JSON object.</returns>
-        public static JObject CreateObject(IFetcher fetcher, string path)
+        public static JObject CreateObject(IFetcher fetcher, string path, bool namesOnly = false)
         {
             var wearables = CreateWearableList();
 
-            fetcher.OnItemFound += (assetPath, assetData) => HandleItem(assetPath, assetData, wearables);
+            if (namesOnly)
+                fetcher.OnItemFound += (assetPath, assetData) => HandleItemName(assetPath, assetData, wearables);
+            else
+                fetcher.OnItemFound += (assetPath, assetData) => HandleItem(assetPath, assetData, wearables);
+
             fetcher.Fetch(path);
 
             return CreateObjectFromWearables(wearables);
@@ -67,7 +71,7 @@ namespace WardrobeItemFetcher
         /// <param name="wearables">Wearables to add.</param>
         private static void AddWearables(JArray array, JArray wearables)
         {
-            foreach (JObject wearable in wearables)
+            foreach (JToken wearable in wearables)
             {
                 array.Add(wearable);
             }
@@ -83,11 +87,15 @@ namespace WardrobeItemFetcher
         /// <param name="fetcher">Item fetcher.</param>
         /// <param name="path">Path to file or directory to fetch from.</param>
         /// <returns>Wearables JSON patch.</returns>
-        public static JArray CreatePatch(IFetcher fetcher, string path)
+        public static JArray CreatePatch(IFetcher fetcher, string path, bool namesOnly = false)
         {
             var wearables = CreateWearableList();
 
-            fetcher.OnItemFound += (assetPath, assetData) => HandleItem(assetPath, assetData, wearables);
+            if (namesOnly)
+                fetcher.OnItemFound += (assetPath, assetData) => HandleItemName(assetPath, assetData, wearables);
+            else
+                fetcher.OnItemFound += (assetPath, assetData) => HandleItem(assetPath, assetData, wearables);
+
             fetcher.Fetch(path);
 
             return CreatePatchFromWearables(wearables);
@@ -119,7 +127,7 @@ namespace WardrobeItemFetcher
         /// <param name="wearables">Wearables to add to this path.</param>
         private static void AddPatchWearables(JArray patch, string path, JArray wearables)
         {
-            foreach (JObject wearable in wearables)
+            foreach (JToken wearable in wearables)
             {
                 patch.Add(PatchBuilder.AddOperation(path, wearable));
             }
@@ -130,8 +138,8 @@ namespace WardrobeItemFetcher
         /// <summary>
         /// Adds an item to the proper wearables array.
         /// </summary>
-        /// <param name="path">Asset path (including file name)</param>
-        /// <param name="item">Item content (json string)</param>
+        /// <param name="path">Asset path (including file name).</param>
+        /// <param name="item">Item json.</param>
         /// <param name="wearables">Wearables to add wearable item to.</param>
         private static void HandleItem(string path, string item, Dictionary<WearableType, JArray> wearables)
         {
@@ -142,6 +150,28 @@ namespace WardrobeItemFetcher
                 wearable = WearableConverter.Convert(wearable, wearableType, path.Substring(path.LastIndexOf("/") + 1), path.Substring(path.LastIndexOf("/") + 1));
 
                 wearables[wearableType].Add(wearable);
+            }
+            catch (Exception exc)
+            {
+                Console.WriteLine("Skipped file '{0}': {1}", path, exc.Message);
+            }
+        }
+
+        /// <summary>
+        /// Adds an item name to the proper wearables array.
+        /// </summary>
+        /// <param name="path">Asset path used to determine item type.</param>
+        /// <param name="item">Item json.</param>
+        /// <param name="wearables">Wearables to add the item name to.</param>
+        private static void HandleItemName(string path, string item, Dictionary<WearableType, JArray> wearables)
+        {
+            try
+            {
+                JObject wearable = JObject.Parse(item);
+                WearableType wearableType = GetWearableType(Path.GetExtension(path));
+
+                string itemName = wearable["itemName"].Value<string>();
+                wearables[wearableType].Add(itemName);
             }
             catch (Exception exc)
             {

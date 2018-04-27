@@ -24,6 +24,9 @@ namespace WardrobeItemFetcher
 
         [Option('f', "format", HelpText = "Format JSON.")]
         public bool Format { get; set; }
+
+        [Option('n', "names", HelpText = "Only store item names")]
+        public bool Names { get; set; }
     }
 
     class Program
@@ -60,9 +63,10 @@ namespace WardrobeItemFetcher
             Console.WriteLine("https://github.com/Silverfeelin/Starbound-WardrobeItemFetcher");
             Console.WriteLine();
             Console.WriteLine("- Options");
-            Console.WriteLine(" Source: {0}", options.InputPath);
-            Console.WriteLine(" Output: {0}", options.OutputPath);
-            Console.WriteLine("   Type: {0}", options.Patch ? "JSON Array" : "JSON Object");
+            Console.WriteLine("  Source: {0}", options.InputPath);
+            Console.WriteLine("  Output: {0}", options.OutputPath);
+            Console.WriteLine("    Type: {0}", options.Patch ? "JSON Array" : "JSON Object");
+            Console.WriteLine(" Content: {0}", options.Names ? "Item names" : "Wearable configs");
             Console.WriteLine();
             Console.WriteLine("- Output");
             Console.WriteLine("Please wait while the application finds wearables...");
@@ -90,7 +94,8 @@ namespace WardrobeItemFetcher
                 fetcher.Extensions = EXTENSIONS;
 
                 // Fetch
-                output = options.Patch ? (JToken)WardrobeItemFetcher.CreatePatch(fetcher, options.InputPath) : WardrobeItemFetcher.CreateObject(fetcher, options.InputPath);
+                bool namesOnly = options.Names;
+                output = options.Patch ? (JToken)WardrobeItemFetcher.CreatePatch(fetcher, options.InputPath, namesOnly) : WardrobeItemFetcher.CreateObject(fetcher, options.InputPath, namesOnly);
             }
             catch (Exception exc)
             {
