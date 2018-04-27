@@ -159,7 +159,7 @@ namespace WardrobeItemFetcher
             
             ArchiveFetcher fetcher = new ArchiveFetcher()
             {
-                Extensions = new HashSet<string>() { ".head", ".chest", ".legs", ".back" }
+                Extensions = new HashSet<string>() { "head", "chest", "legs", "back" }
             };
 
             ZipArchiveEntry metadata = archive.Entries.Where(e =>
