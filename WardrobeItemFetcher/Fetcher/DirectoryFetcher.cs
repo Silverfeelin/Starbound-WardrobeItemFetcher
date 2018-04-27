@@ -1,28 +1,18 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace WardrobeItemFetcher
+namespace WardrobeItemFetcher.Fetcher
 {
-    /// <summary>
-    /// File callback. Can be used to handle files found by the <see cref="FileFetcher"/>.
-    /// </summary>
-    /// <param name="file">File information for the found file.</param>
-    public delegate void FileHandler(FileInfo file);
-
-    public class FileFetcher
+    public class DirectoryFetcher : IFetcher
     {
         /// <summary>
         /// Gets or sets the file extensions to find. If null or empty, all files are considered valid.
         /// Only lowercase entries without a dot should be used in this set (i.e. "chest").
         /// </summary>
         public ISet<string> Extensions { get; set; }
-
-        /// <summary>
-        /// When fetching files, this event is invoked for each found file matching the <see cref="Extensions"/>.
-        /// </summary>
-        public event FileHandler OnFileFound;
+        
+        public event ItemFound OnItemFound;
 
         /// <summary>
         /// Returns the (asset path) for a file.
@@ -43,19 +33,16 @@ namespace WardrobeItemFetcher
         /// </summary>
         /// <param name="baseDirectory">Directory to search in.</param>
         /// <param name="recursive">Search in subdirectories.</param>
-        public void Fetch(DirectoryInfo baseDirectory, bool recursive)
+        /// <exception cref="DirectoryNotFoundException"></exception>
+        public void Fetch(string path)
         {
-            if (!baseDirectory.Exists)
+            DirectoryInfo directoryInfo = new DirectoryInfo(path);
+            if (!directoryInfo.Exists)
             {
-                throw new DirectoryNotFoundException("Directory '" + baseDirectory.FullName + "' does not exist.");
+                throw new DirectoryNotFoundException("Directory '" + directoryInfo.FullName + "' does not exist.");
             }
 
-            if (OnFileFound == null)
-            {
-                throw new ArgumentNullException("The OnFileFound event must have at least one subscriber.");
-            }
-
-            ScanDirectory(baseDirectory, recursive);
+            ScanDirectory(directoryInfo, directoryInfo, true);
         }
 
         /// <summary>
@@ -63,7 +50,7 @@ namespace WardrobeItemFetcher
         /// </summary>
         /// <param name="directory">Directory to search in.</param>
         /// <param name="recursive">Search in subdirectories.</param>
-        private void ScanDirectory(DirectoryInfo directory, bool recursive)
+        private void ScanDirectory(DirectoryInfo baseDirectory, DirectoryInfo directory, bool recursive)
         {
             FileInfo[] files = directory.GetFiles("*.*");
 
@@ -74,14 +61,17 @@ namespace WardrobeItemFetcher
 
             foreach (FileInfo file in filteredFiles)
             {
-                OnFileFound?.Invoke(file);
+                string s = File.ReadAllText(file.FullName);
+                string path = AssetPath(baseDirectory.FullName, file.FullName);
+
+                OnItemFound?.Invoke(path, s);
             }
 
             if (recursive)
             {
                 foreach (DirectoryInfo dir in directory.GetDirectories())
                 {
-                    ScanDirectory(dir, true);
+                    ScanDirectory(baseDirectory, dir, true);
                 }
             }
         }

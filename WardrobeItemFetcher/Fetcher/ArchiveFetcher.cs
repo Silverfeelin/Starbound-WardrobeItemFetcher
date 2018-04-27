@@ -1,25 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Text;
+using System.Linq;
 
-namespace WardrobeItemFetcher
+namespace WardrobeItemFetcher.Fetcher
 {
     public delegate void EntryHandler(ZipArchiveEntry entry);
 
-    public class ArchiveFetcher
+    public class ArchiveFetcher : IFetcher
     {
         /// <summary>
         /// Gets or sets the file extensions to find. If null or empty, all files are considered valid.
         /// Only lowercase entries without a dot should be used in this set (i.e. "chest").
         /// </summary>
         public ISet<string> Extensions { get; set; }
-
-        /// <summary>
-        /// When fetching entries from the archive, this event is invoked for every entry matching the <see cref="Extensions"/>.
-        /// </summary>
-        public event EntryHandler OnEntryFound;
+        
+        public event ItemFound OnItemFound;
 
         /// <summary>
         /// Returns the (asset path) for a file.
@@ -53,23 +49,34 @@ namespace WardrobeItemFetcher
         /// <param name="archive">Zip archive.</param>
         public void Fetch(ZipArchive archive)
         {
-            if (archive == null)
+            // Get metadata to determine asset root
+            ZipArchiveEntry metadata = archive.Entries.Where(e =>
             {
-                throw new ArgumentNullException("The ZipArchive can not be null.");
-            }
-
-            if (OnEntryFound == null)
-            {
-                throw new ArgumentNullException("The OnEntryFound event must have at least one subscriber.");
-            }
+                var name = e.Name.ToLowerInvariant();
+                return name == "_metadata" || name == ".metadata";
+            }).FirstOrDefault();
+            string root = metadata != null ? Path.GetDirectoryName(metadata.FullName) : "/";
 
             foreach (ZipArchiveEntry entry in archive.Entries)
             {
                 if (Extensions == null || Extensions.Count == 0 ||
                     Extensions.Contains(Path.GetExtension(entry.FullName).Replace(".", "").ToLowerInvariant()))
                 {
-                    OnEntryFound?.Invoke(entry);
+                    string s = ReadEntry(entry);
+                    string path = AssetPath(root, entry.FullName);
+
+                    OnItemFound?.Invoke(path, s);
                 }
+            }
+        }
+
+
+        private string ReadEntry(ZipArchiveEntry entry)
+        {
+            using (var stream = entry.Open())
+            using (var reader = new StreamReader(stream, true))
+            {
+                return reader.ReadToEnd();
             }
         }
     }

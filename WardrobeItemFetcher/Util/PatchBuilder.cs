@@ -1,8 +1,8 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 using System.Text.RegularExpressions;
+using Newtonsoft.Json.Linq;
 
-namespace WardrobeItemFetcher
+namespace WardrobeItemFetcher.Util
 {
     public static class PatchBuilder
     {

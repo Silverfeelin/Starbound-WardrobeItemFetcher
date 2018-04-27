@@ -1,22 +1,22 @@
-﻿using CommandLine;
-using CommandLine.Text;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using CommandLine;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using WardrobeItemFetcher.Fetcher;
 
 namespace WardrobeItemFetcher
 {
     class Options
     {
-        [Option('i', "input", Required = true, HelpText = "Asset directory or Zip file to search in.")]
-        public string Directory { get; set; }
+        [Option('i', "input", Required = true, HelpText = "Directory or file to search in. Asset directories, `.pak` and `.zip` files are supported (but not zipped pak files).")]
+        public string InputPath { get; set; }
 
         [Option('o', "output", Required = true, HelpText = "Output file.")]
-        public string OutputFile { get; set; }
-        
+        public string OutputPath { get; set; }
+
         [Option('p', "patch", HelpText = "Create a patch (wearables.json.patch) instead of a normal file (wearables.json).")]
         public bool Patch { get; set; }
 
@@ -29,8 +29,10 @@ namespace WardrobeItemFetcher
 
     class Program
     {
-        static Options options;
-        static DirectoryInfo rootDirectory;
+        public static readonly HashSet<string> EXTENSIONS = new HashSet<string>()
+        {
+            "head", "chest", "legs", "back"
+        };
 
         static void Main(string[] args)
         {
@@ -38,34 +40,120 @@ namespace WardrobeItemFetcher
                 .WithParsed(opts => Run(opts));
         }
 
+        enum ContentType
+        {
+            Directory,
+            Pak,
+            Zip
+        };
+
         static void Run(Options options)
         {
-            Program.options = options;
-            
-            rootDirectory = new DirectoryInfo(options.Directory);
-            FileInfo outputFile = new FileInfo(options.OutputFile);
-            bool isZip = rootDirectory.FullName.EndsWith(".zip");
+            string input = options.InputPath;
+            ContentType contentType = input.EndsWith(".pak") ? ContentType.Pak : input.EndsWith(".zip") ? ContentType.Zip : ContentType.Directory;
 
-            // Check paths.
-            if (!isZip && !rootDirectory.Exists)
+            // Confirm input/output
+            ConfirmInput(input, contentType);
+            ConfirmOutput(options.OutputPath, options.OverwriteFile);
+            
+            // Log information
+            Console.WriteLine("= WardrobeItemFetcher =");
+            Console.WriteLine("https://github.com/Silverfeelin/Starbound-WardrobeItemFetcher");
+            Console.WriteLine();
+            Console.WriteLine("- Options");
+            Console.WriteLine(" Source: {0}", options.InputPath);
+            Console.WriteLine(" Output: {0}", options.OutputPath);
+            Console.WriteLine("   Type: {0}", options.Patch ? "JSON Array" : "JSON Object");
+            Console.WriteLine();
+            Console.WriteLine("- Output");
+            Console.WriteLine("Please wait while the application finds wearables...");
+
+            // Create wearables JSON.
+            JToken output;
+            try
             {
-                Exit($"Error: Asset directory '{rootDirectory.FullName}' does not exist.", 1);
+                // Get fetcher
+                IFetcher fetcher;
+                switch (contentType)
+                {
+                    default:
+                    case ContentType.Directory:
+                        fetcher = new DirectoryFetcher();
+                        break;
+                    case ContentType.Pak:
+                        fetcher = new PakFetcher();
+                        break;
+                    case ContentType.Zip:
+                        fetcher = new ArchiveFetcher();
+                        break;
+                }
+
+                fetcher.Extensions = EXTENSIONS;
+
+                // Fetch
+                output = options.Patch ? (JToken)WardrobeItemFetcher.CreatePatch(fetcher, options.InputPath) : WardrobeItemFetcher.CreateObject(fetcher, options.InputPath);
+            }
+            catch (Exception exc)
+            {
+                Exit($"Error: Failed to create JSON:{Environment.NewLine}  {exc.Message}", 1);
                 return;
             }
 
-            if (isZip && !File.Exists(rootDirectory.FullName))
+            // Write to disk.
+            try
             {
-                Exit($"Error: Zip file '{rootDirectory.FullName}' does not exist.", 1);
+                File.WriteAllText(options.OutputPath, output.ToString(options.Format ? Formatting.Indented : Formatting.None));
+            }
+            catch (Exception exc)
+            {
+                Exit($"Error: Failed to write contents to '{options.OutputPath}':{Environment.NewLine}  {exc.Message}", 1);
                 return;
             }
-            
+
+            Console.WriteLine("Done!");
+        }
+
+        private static void ConfirmInput(string path, ContentType type)
+        {
+            // Confirm input
+            switch (type)
+            {
+                case ContentType.Directory:
+                    if (!Directory.Exists(path))
+                    {
+                        Exit($"Error: Asset directory '{path}' does not exist.", 1);
+                        return;
+                    }
+                    break;
+                case ContentType.Pak:
+                    if (!File.Exists(path))
+                    {
+                        Exit($"Error: Pak file '{path}' does not exist.", 1);
+                        return;
+                    }
+                    break;
+                case ContentType.Zip:
+                    if (!File.Exists(path))
+                    {
+                        Exit($"Error: Zip file '{path}' does not exist.", 1);
+                        return;
+                    }
+                    break;
+            }
+        }
+
+        private static void ConfirmOutput(string path, bool canOverwrite)
+        {
+            FileInfo outputFile = new FileInfo(path);
+
+            // Confirm output
             if (!outputFile.Directory.Exists)
             {
                 Exit($"Error: Output directory '{outputFile.Directory.FullName}' does not exist.", 1);
                 return;
             }
-            
-            if (outputFile.Exists && !options.OverwriteFile)
+
+            if (outputFile.Exists && !canOverwrite)
             {
                 Exit($"Error: Output file '{outputFile.FullName}' already exists and flag --overwrite not set.", 1);
                 return;
@@ -77,53 +165,8 @@ namespace WardrobeItemFetcher
                 return;
             }
 
-            Console.WriteLine("= WardrobeItemFetcher =");
-            Console.WriteLine("https://github.com/Silverfeelin/Starbound-WardrobeItemFetcher");
-            Console.WriteLine();
-            Console.WriteLine("- Options");
-            Console.WriteLine("Asset Directory: {0}", rootDirectory.FullName);
-            Console.WriteLine("    Output File: {0}", outputFile.FullName);
-            Console.WriteLine("      File Type: {0}", options.Patch ? "JSON Patch" : "JSON");
-            Console.WriteLine();
-            Console.WriteLine("- Output");
-            Console.WriteLine("Please wait while the application finds valid wearables...");
-
-            // Create wearables JSON.
-            JToken output;
-            try
-            {
-                if (isZip)
-                {
-                    using (ZipArchive archive = ZipFile.OpenRead(rootDirectory.FullName))
-                    {
-                        output = options.Patch ? (JToken)WardrobeItemFetcher.CreatePatch(archive) : WardrobeItemFetcher.CreateObject(archive);
-                    }
-                }
-                else
-                {
-                    output = options.Patch ? (JToken)WardrobeItemFetcher.CreatePatch(rootDirectory) : WardrobeItemFetcher.CreateObject(rootDirectory);
-                }
-            }
-            catch (Exception exc)
-            {
-                Exit($"Error: Failed to create JSON:{Environment.NewLine}  {exc.Message}", 1);
-                return;
-            }
-
-            // Write to disk.
-            try
-            {
-                File.WriteAllText(outputFile.FullName, output.ToString(options.Format ? Formatting.Indented : Formatting.None));
-            }
-            catch (Exception exc)
-            {
-                Exit($"Error: Failed to write contents to '{outputFile.FullName}':{Environment.NewLine}  {exc.Message}", 1);
-                return;
-            }
-
-            Console.WriteLine("Done!");
         }
-        
+
         private static void Exit(string message, int exitCode = 0)
         {
             Console.WriteLine(message);

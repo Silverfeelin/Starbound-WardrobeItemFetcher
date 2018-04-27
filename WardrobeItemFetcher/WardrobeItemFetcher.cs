@@ -1,10 +1,9 @@
-﻿using Newtonsoft.Json.Linq;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Text;
+using Newtonsoft.Json.Linq;
+using WardrobeItemFetcher.Fetcher;
+using WardrobeItemFetcher.Util;
 
 namespace WardrobeItemFetcher
 {
@@ -21,162 +20,31 @@ namespace WardrobeItemFetcher
             return wearables;
         }
 
+        #region Object
+
         /// <summary>
-        /// Creates a wearables patch file by finding all wearables in the given directory recursively.
+        /// Creates a wearables JSON object using the configured fetcher.
         /// </summary>
-        /// <param name="directory">Asset directory.</param>
-        /// <returns>Wearable patch.</returns>
-        public static JArray CreatePatch(DirectoryInfo directory)
+        /// <param name="fetcher">Item fetcher.</param>
+        /// <param name="path">Path to file or directory to fetch from.</param>
+        /// <returns>Wearables JSON object.</returns>
+        public static JObject CreateObject(IFetcher fetcher, string path)
         {
-            Dictionary<WearableType, JArray> wearables = CreateWearableList();
+            var wearables = CreateWearableList();
 
-            // Fetch files
-            FileFetcher fileFetcher = new FileFetcher()
-            {
-                Extensions = new HashSet<string>() { "head", "chest", "legs", "back" }
-            };
+            fetcher.OnItemFound += (assetPath, assetData) => HandleItem(assetPath, assetData, wearables);
+            fetcher.Fetch(path);
 
-            fileFetcher.OnFileFound += (file =>
-            {
-                HandleFile(directory, file, wearables);
-            });
-
-            fileFetcher.Fetch(directory, true);
-
-            // Create patch for found wearables
-            JArray patch = new JArray();
-
-            foreach (WearableType type in Enum.GetValues(typeof(WearableType)))
-            {
-                if (wearables.ContainsKey(type))
-                    AddPatchWearables(patch, GetPatchPath(type), wearables[type]);
-            }
-
-            return patch;
+            return CreateObjectFromWearables(wearables);
         }
 
         /// <summary>
-        /// Creates a wearables patch file by finding all wearables in the given zip archive.
+        /// Creates a wearables JSON object from grouped wearables per type.
         /// </summary>
-        /// <param name="archive">Zip archive.</param>
-        /// <returns>Wearables patch.</returns>
-        public static JArray CreatePatch(ZipArchive archive)
+        /// <param name="wearables">Grouped wearables.</param>
+        /// <returns>Wearables JSON object.</returns>
+        private static JObject CreateObjectFromWearables(Dictionary<WearableType, JArray> wearables)
         {
-            Dictionary<WearableType, JArray> wearables = CreateWearableList();
-
-            // Fetch files
-            ArchiveFetcher fetcher = new ArchiveFetcher()
-            {
-                Extensions = new HashSet<string>() { "head", "chest", "legs", "back" }
-            };
-
-            ZipArchiveEntry metadata = archive.Entries.Where(e =>
-            {
-                var name = e.Name.ToLowerInvariant();
-                return name == "_metadata" || name == ".metadata";
-            }).FirstOrDefault();
-            string root = metadata != null ? Path.GetDirectoryName(metadata.FullName) : "/";
-
-            fetcher.OnEntryFound += (entry =>
-            {
-                HandleEntry(entry, root, wearables);
-            });
-
-            fetcher.Fetch(archive);
-
-            // Create patch for found wearables
-            JArray patch = new JArray();
-
-            foreach (WearableType type in Enum.GetValues(typeof(WearableType)))
-            {
-                if (wearables.ContainsKey(type))
-                    AddPatchWearables(patch, GetPatchPath(type), wearables[type]);
-            }
-
-            return patch;
-        }
-
-        /// <summary>
-        /// Adds all wearables of a wearable type through patches.
-        /// </summary>
-        /// <param name="patch">Patch object.</param>
-        /// <param name="path">Patch path. For example, /head/-</param>
-        /// <param name="wearables">Wearables to add to this path.</param>
-        private static void AddPatchWearables(JArray patch, string path, JArray wearables)
-        {
-            foreach (JObject wearable in wearables)
-            {
-                patch.Add(PatchBuilder.AddOperation(path, wearable));
-            }
-        }
-
-        /// <summary>
-        /// Creates a wearables file by finding all wearables in the given directory recursively.
-        /// </summary>
-        /// <param name="directory">Asset directory.</param>
-        /// <returns>Wearable object.</returns>
-        public static JObject CreateObject(DirectoryInfo directory)
-        {
-            Dictionary<WearableType, JArray> wearables = CreateWearableList();
-
-            // Fetch files
-            FileFetcher fileFetcher = new FileFetcher()
-            {
-                Extensions = new HashSet<string>() { "head", "chest", "legs", "back" }
-            };
-
-            fileFetcher.OnFileFound += (file =>
-            {
-                HandleFile(directory, file, wearables);
-            });
-
-            fileFetcher.Fetch(directory, true);
-
-            // Create object for found wearables.
-            JObject obj = new JObject(
-                new JProperty("head", new JArray()),
-                new JProperty("chest", new JArray()),
-                new JProperty("legs", new JArray()),
-                new JProperty("back", new JArray())
-            );
-
-            AddWearables(obj["head"] as JArray, wearables[WearableType.Head]);
-            AddWearables(obj["chest"] as JArray, wearables[WearableType.Chest]);
-            AddWearables(obj["legs"] as JArray, wearables[WearableType.Legs]);
-            AddWearables(obj["back"] as JArray, wearables[WearableType.Back]);
-
-            return obj;
-        }
-
-        /// <summary>
-        /// Creates a wearables file by finding all wearables in the given zip archive.
-        /// </summary>
-        /// <param name="archive">Opened zip archive.</param>
-        /// <returns>Wearable object.</returns>
-        public static JObject CreateObject(ZipArchive archive)
-        {
-            Dictionary<WearableType, JArray> wearables = CreateWearableList();
-            
-            ArchiveFetcher fetcher = new ArchiveFetcher()
-            {
-                Extensions = new HashSet<string>() { "head", "chest", "legs", "back" }
-            };
-
-            ZipArchiveEntry metadata = archive.Entries.Where(e =>
-            {
-                var name = e.Name.ToLowerInvariant();
-                return name == "_metadata" || name == ".metadata";
-            }).FirstOrDefault();
-            string root = metadata != null ? Path.GetDirectoryName(metadata.FullName) : "/";
-
-            fetcher.OnEntryFound += (entry) =>
-            {
-                HandleEntry(entry, root, wearables);
-            };
-
-            fetcher.Fetch(archive);
-
-            // Create object for found wearables.
             JObject obj = new JObject(
                 new JProperty("head", new JArray()),
                 new JProperty("chest", new JArray()),
@@ -205,56 +73,83 @@ namespace WardrobeItemFetcher
             }
         }
 
+        #endregion
+
+        #region Patch
+
         /// <summary>
-        /// Handles a file, by parsing it and adding it to the right wearable array in the dictionary.
+        /// Creates a wearables JSON patch using the configured fetcher.
         /// </summary>
-        /// <param name="assetDir">Asset directory, used to build the asset path.</param>
-        /// <param name="file">Wearable file.</param>
-        /// <param name="wearables">Output wearables.</param>
-        private static void HandleFile(DirectoryInfo assetDir, FileInfo file, Dictionary<WearableType, JArray> wearables)
+        /// <param name="fetcher">Item fetcher.</param>
+        /// <param name="path">Path to file or directory to fetch from.</param>
+        /// <returns>Wearables JSON patch.</returns>
+        public static JArray CreatePatch(IFetcher fetcher, string path)
+        {
+            var wearables = CreateWearableList();
+
+            fetcher.OnItemFound += (assetPath, assetData) => HandleItem(assetPath, assetData, wearables);
+            fetcher.Fetch(path);
+
+            return CreatePatchFromWearables(wearables);
+        }
+
+        /// <summary>
+        /// Creates a wearables patch from grouped wearables per type.
+        /// </summary>
+        /// <param name="wearables">Grouped wearables.</param>
+        /// <returns>Wearables patch.</returns>
+        private static JArray CreatePatchFromWearables(Dictionary<WearableType, JArray> wearables)
+        {
+            JArray patch = new JArray();
+
+            foreach (WearableType type in Enum.GetValues(typeof(WearableType)))
+            {
+                if (wearables.ContainsKey(type))
+                    AddPatchWearables(patch, GetPatchPath(type), wearables[type]);
+            }
+
+            return patch;
+        }
+
+        /// <summary>
+        /// Adds all wearables of a wearable type through patches.
+        /// </summary>
+        /// <param name="patch">Patch object.</param>
+        /// <param name="path">Patch path. For example, /head/-</param>
+        /// <param name="wearables">Wearables to add to this path.</param>
+        private static void AddPatchWearables(JArray patch, string path, JArray wearables)
+        {
+            foreach (JObject wearable in wearables)
+            {
+                patch.Add(PatchBuilder.AddOperation(path, wearable));
+            }
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Adds an item to the proper wearables array.
+        /// </summary>
+        /// <param name="path">Asset path (including file name)</param>
+        /// <param name="item">Item content (json string)</param>
+        /// <param name="wearables">Wearables to add wearable item to.</param>
+        private static void HandleItem(string path, string item, Dictionary<WearableType, JArray> wearables)
         {
             try
             {
-                JObject wearable = JObject.Parse(File.ReadAllText(file.FullName));
-
-                WearableType wearableType = GetWearableType(file.Extension);
-                wearable = WearableConverter.Convert(wearable, wearableType, FileFetcher.AssetPath(assetDir.FullName, file.FullName), file.Name);
+                JObject wearable = JObject.Parse(item);
+                WearableType wearableType = GetWearableType(Path.GetExtension(path));
+                wearable = WearableConverter.Convert(wearable, wearableType, path.Substring(path.LastIndexOf("/") + 1), path.Substring(path.LastIndexOf("/") + 1));
 
                 wearables[wearableType].Add(wearable);
             }
             catch (Exception exc)
             {
-                Console.WriteLine("Skipped file '{0}': {1}", file.FullName, exc.Message);
+                Console.WriteLine("Skipped file '{0}': {1}", path, exc.Message);
             }
         }
         
-        /// <summary>
-        /// Handles a zip entry, by opening it, parsing the contents and adding the wearable to the right array in wearables.
-        /// </summary>
-        /// <param name="entry">Wearable entry.</param>
-        /// <param name="root">Root asset folder path.</param>
-        /// <param name="wearables">Output wearables.</param>
-        private static void HandleEntry(ZipArchiveEntry entry, string root, Dictionary<WearableType, JArray> wearables)
-        {
-            using (var stream = entry.Open())
-            using (var reader = new StreamReader(stream, true))
-            {
-                try
-                {
-                    string s = reader.ReadToEnd();
-                    JObject wearable = JObject.Parse(s);
-
-                    WearableType wearableType = GetWearableType(Path.GetExtension(entry.FullName).Substring(1));
-                    wearable = WearableConverter.Convert(wearable, wearableType, ArchiveFetcher.AssetPath(root, entry.FullName), entry.Name);
-
-                    wearables[wearableType].Add(wearable);
-                }
-                catch (Exception exc)
-                {
-                    Console.WriteLine("Skipped file '{0}': {1}", entry.FullName, exc.Message);
-                }
-            }
-        }
+        #region Helper
 
         /// <summary>
         /// Gets the path for a new patch operation to add a wearable.
@@ -293,5 +188,7 @@ namespace WardrobeItemFetcher
 
             throw new ArgumentException($"Wearable type could not be determined for extension '{extension}'.");
         }
+
+        #endregion
     }
 }
