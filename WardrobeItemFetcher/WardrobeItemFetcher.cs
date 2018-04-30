@@ -147,7 +147,7 @@ namespace WardrobeItemFetcher
             {
                 JObject wearable = JObject.Parse(item);
                 WearableType wearableType = GetWearableType(Path.GetExtension(path));
-                wearable = WearableConverter.Convert(wearable, wearableType, path.Substring(path.LastIndexOf("/") + 1), path.Substring(path.LastIndexOf("/") + 1));
+                wearable = WearableConverter.Convert(wearable, wearableType, path.Substring(0, path.LastIndexOf("/") + 1), path.Substring(path.LastIndexOf("/") + 1));
 
                 wearables[wearableType].Add(wearable);
             }
