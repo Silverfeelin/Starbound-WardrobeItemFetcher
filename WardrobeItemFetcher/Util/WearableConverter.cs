@@ -40,7 +40,21 @@ namespace WardrobeItemFetcher.Util
             JToken colorOptions = wearable.SelectToken("colorOptions");
             if (colorOptions is JArray)
             {
-                newWearable["colorOptions"] = colorOptions;
+                bool validColors = true;
+                foreach (var item in colorOptions)
+                {
+                    if (item.Type != JTokenType.Object)
+                    {
+                        // Malformed color options.
+                        validColors = false;
+                        break;
+                    }
+                }
+
+                if (validColors)
+                {
+                    newWearable["colorOptions"] = colorOptions;
+                }
             }
 
             return newWearable;
