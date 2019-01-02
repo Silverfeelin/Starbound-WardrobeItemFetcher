@@ -28,14 +28,14 @@ namespace WardrobeItemFetcher
         /// <param name="fetcher">Item fetcher.</param>
         /// <param name="path">Path to file or directory to fetch from.</param>
         /// <returns>Wearables JSON object.</returns>
-        public static JObject CreateObject(IFetcher fetcher, string path, bool namesOnly = false)
+        public static JObject CreateObject(IFetcher fetcher, string path, bool namesOnly = false, string[] parameters = null)
         {
             var wearables = CreateWearableList();
 
             if (namesOnly)
                 fetcher.OnItemFound += (assetPath, assetData) => HandleItemName(assetPath, assetData, wearables);
             else
-                fetcher.OnItemFound += (assetPath, assetData) => HandleItem(assetPath, assetData, wearables);
+                fetcher.OnItemFound += (assetPath, assetData) => HandleItem(assetPath, assetData, wearables, parameters);
 
             fetcher.Fetch(path);
 
@@ -87,14 +87,14 @@ namespace WardrobeItemFetcher
         /// <param name="fetcher">Item fetcher.</param>
         /// <param name="path">Path to file or directory to fetch from.</param>
         /// <returns>Wearables JSON patch.</returns>
-        public static JArray CreatePatch(IFetcher fetcher, string path, bool namesOnly = false)
+        public static JArray CreatePatch(IFetcher fetcher, string path, bool namesOnly = false, string[] parameters = null)
         {
             var wearables = CreateWearableList();
 
             if (namesOnly)
                 fetcher.OnItemFound += (assetPath, assetData) => HandleItemName(assetPath, assetData, wearables);
             else
-                fetcher.OnItemFound += (assetPath, assetData) => HandleItem(assetPath, assetData, wearables);
+                fetcher.OnItemFound += (assetPath, assetData) => HandleItem(assetPath, assetData, wearables, parameters);
 
             fetcher.Fetch(path);
 
@@ -141,13 +141,14 @@ namespace WardrobeItemFetcher
         /// <param name="path">Asset path (including file name).</param>
         /// <param name="item">Item json.</param>
         /// <param name="wearables">Wearables to add wearable item to.</param>
-        private static void HandleItem(string path, string item, Dictionary<WearableType, JArray> wearables)
+        /// <param name="parameters">Optional additional parameters to copy from the item.</param>
+        private static void HandleItem(string path, string item, Dictionary<WearableType, JArray> wearables, string[] parameters = null)
         {
             try
             {
                 JObject wearable = JObject.Parse(item);
                 WearableType wearableType = GetWearableType(Path.GetExtension(path));
-                wearable = WearableConverter.Convert(wearable, wearableType, path.Substring(0, path.LastIndexOf("/") + 1), path.Substring(path.LastIndexOf("/") + 1));
+                wearable = WearableConverter.Convert(wearable, path.Substring(0, path.LastIndexOf("/") + 1), path.Substring(path.LastIndexOf("/") + 1), parameters);
 
                 wearables[wearableType].Add(wearable);
             }

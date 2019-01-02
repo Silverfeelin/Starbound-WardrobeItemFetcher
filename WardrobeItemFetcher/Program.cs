@@ -27,6 +27,9 @@ namespace WardrobeItemFetcher
 
         [Option('n', "names", HelpText = "Only store item names")]
         public bool Names { get; set; }
+
+        [Option("parameters", Required = false, HelpText = "Additional parameters to read from the item file (if present). Comma separated and case-sensitive.")]
+        public string Parameters { get; set; }
     }
 
     class Program
@@ -57,6 +60,12 @@ namespace WardrobeItemFetcher
             // Confirm input/output
             ConfirmInput(input, contentType);
             ConfirmOutput(options.OutputPath, options.OverwriteFile);
+
+            string[] parameters = null;
+            if (!string.IsNullOrWhiteSpace(options.Parameters))
+            {
+                parameters = options.Parameters.Split(',');
+            }
             
             // Log information
             Console.WriteLine("= WardrobeItemFetcher =");
@@ -67,6 +76,12 @@ namespace WardrobeItemFetcher
             Console.WriteLine("  Output: {0}", options.OutputPath);
             Console.WriteLine("    Type: {0}", options.Patch ? "JSON Array" : "JSON Object");
             Console.WriteLine(" Content: {0}", options.Names ? "Item names" : "Wearable configs");
+
+            if (parameters != null)
+            {
+                Console.WriteLine(" Parameters: {0}", options.Parameters);
+            }
+
             Console.WriteLine();
             Console.WriteLine("- Output");
             Console.WriteLine("Please wait while the application finds wearables...");
@@ -95,7 +110,7 @@ namespace WardrobeItemFetcher
 
                 // Fetch
                 bool namesOnly = options.Names;
-                output = options.Patch ? (JToken)WardrobeItemFetcher.CreatePatch(fetcher, options.InputPath, namesOnly) : WardrobeItemFetcher.CreateObject(fetcher, options.InputPath, namesOnly);
+                output = options.Patch ? (JToken)WardrobeItemFetcher.CreatePatch(fetcher, options.InputPath, namesOnly, parameters) : WardrobeItemFetcher.CreateObject(fetcher, options.InputPath, namesOnly, parameters);
             }
             catch (Exception exc)
             {
