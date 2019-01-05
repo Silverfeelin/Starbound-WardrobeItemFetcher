@@ -43,21 +43,8 @@ namespace WardrobeItemFetcher.Util
             JToken colorOptions = wearable.SelectToken("colorOptions");
             if (colorOptions is JArray)
             {
-                bool validColors = true;
-                foreach (var item in colorOptions)
-                {
-                    if (item.Type != JTokenType.Object)
-                    {
-                        // Malformed color options.
-                        validColors = false;
-                        break;
-                    }
-                }
-
-                if (validColors)
-                {
-                    newWearable["colorOptions"] = colorOptions;
-                }
+                colorOptions = FixColorOptions(colorOptions as JArray);
+                if (colorOptions != null) newWearable["colorOptions"] = colorOptions;
             }
 
             // Additional parameters (such as 'tags').
@@ -74,6 +61,35 @@ namespace WardrobeItemFetcher.Util
             }
 
             return newWearable;
+        }
+
+        // Adds # because Starbound parses color options starting with 0 as octal numbers.
+        // Returned array is a new updated color option array.
+        public static JArray FixColorOptions(JArray colorOptions)
+        {
+            JArray newColorOptions = new JArray();
+
+            foreach (var tColorOption in colorOptions)
+            {
+                if (tColorOption.Type != JTokenType.Object)
+                {
+                    Console.Error.WriteLine("Faulty color option found. {0}", tColorOption);
+                    return null;
+                }
+
+                var colorOption = tColorOption as JObject;
+                var newColorOption = new JObject();
+                // Directives
+                foreach (var item in colorOption)
+                {
+                    string key = $"#{item.Key}";
+                    newColorOption[key] = item.Value;
+                }
+
+                newColorOptions.Add(newColorOption);
+            }
+
+            return newColorOptions;
         }
     }
 }
