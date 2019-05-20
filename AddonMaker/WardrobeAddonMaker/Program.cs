@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using CommandLine;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -9,6 +10,28 @@ namespace WardrobeAddonMaker
 {
     public class Program
     {
+        public class Options
+        {
+            [Option( "input", Required = false, HelpText = "Asset path to scan.")]
+            public string Input { get; set; }
+
+            [Option( "identifier", Required = false, HelpText = "Mod identifier (i.e. FrackinUniverse).")]
+            public string Identifier { get; set; }
+
+            [Option("name", Required = false, HelpText = "Mod name (i.e. Frackin' Universe).")]
+            public string Name { get; set; }
+
+            [Option("author", Required = false, HelpText = "Mod author (i.e. sayter).")]
+            public string Author { get; set; }
+
+            [Option("version", Required = false, HelpText = "Mod version (i.e. 5.6.3131).")]
+            public string Version { get; set; }
+
+            [Option("configure", Required = false, HelpText = "Configure necessary parameters for the tool.")]
+            public string Configure { get; set; }
+        }
+
+        private static Configuration _config;
         private static string _applicationPath;
         private static string _modsPath;
         private static string _addonsPath;
@@ -17,75 +40,92 @@ namespace WardrobeAddonMaker
         public static void Main(string[] args)
         {
             _applicationPath = AppDomain.CurrentDomain.BaseDirectory;
-            var config = new Configuration(Path.Combine(_applicationPath, "config.json"));
+            _config = new Configuration(Path.Combine(_applicationPath, "config.json"));
 
             if (args.Any(a => a == "--configure"))
             {
-                var success = Configure(config);
+                var success = Configure(_config);
                 Console.WriteLine(success ? "Configuration saved." : "Configuration not saved or failed to save.");
                 return;
             }
 
-            if (!ValidateSettings(config))
+            if (!ValidateSettings(_config))
             {
                 Console.WriteLine("Please run with --configure.");
                 return;
             }
 
-            _modsPath = config.Data.Value<string>("ModPath");
-            _addonsPath = config.Data.Value<string>("AddonPath");
-            _itemFetcherPath = config.Data.Value<string>("ItemFetcherPath");
+            _modsPath = _config.Data.Value<string>("ModPath");
+            _addonsPath = _config.Data.Value<string>("AddonPath");
+            _itemFetcherPath = _config.Data.Value<string>("ItemFetcherPath");
 
-            if (args.Length == 0)
-                NewMod();
-            else
-                UpdateMod(args[0]);
+
+            Parser.Default.ParseArguments<Options>(args)
+                .WithParsed(o =>
+                {
+                    var path = Path.Combine(_addonsPath, $"Wardrobe-{o.Identifier}");
+                    if (Directory.Exists(path))
+                        UpdateMod(o);
+                    else
+                        NewMod(o);
+                });
         }
 
-        private static void NewMod()
+        private static void NewMod(Options o)
         {
             Console.WriteLine("= Wardrobe Add-on Maker - New =");
 
             // Identifier
-            Console.Write("Mod identifier: ");
-            var identifier = Console.ReadLine();
-            if (string.IsNullOrWhiteSpace(identifier))
+            if (string.IsNullOrWhiteSpace(o.Identifier))
             {
-                Console.WriteLine("No value provided.");
-                return;
+                Console.Write("Mod identifier: ");
+                o.Identifier = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(o.Identifier))
+                {
+                    Console.WriteLine("No value provided.");
+                    return;
+                }
             }
-
-            var identifierCode = identifier.Substring(0, 1).ToLowerInvariant() +
-                                 identifier.Substring(1).Replace(" ", string.Empty);
-            var addonPath = Path.Combine(_addonsPath, $"Wardrobe-{identifier}");
+            var identifierCode = o.Identifier.Substring(0, 1).ToLowerInvariant() +
+                                 o.Identifier.Substring(1).Replace(" ", string.Empty);
+            var addonPath = Path.Combine(_addonsPath, $"Wardrobe-{o.Identifier}");
             var wardrobePath = Path.Combine(addonPath, "wardrobe");
             var itemFile = Path.Combine(wardrobePath, $"{identifierCode}.json");
 
             if (Directory.Exists(addonPath))
             {
                 Console.WriteLine("Add-on already exists! Switching to update mode...");
-                UpdateMod(addonPath);
+                UpdateMod(o);
                 return;
             }
 
             // Mod name
-            Console.Write("Mod name: ");
-            var name = Console.ReadLine();
-            if (string.IsNullOrWhiteSpace(name))
+            if (string.IsNullOrWhiteSpace(o.Name))
             {
-                Console.WriteLine("No value provided.");
-                return;
-            };
+                Console.Write("Mod name: ");
+                o.Name = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(o.Name))
+                {
+                    Console.WriteLine("No value provided.");
+                    return;
+                };
+            }
 
             // Author
-            Console.Write("Author: ");
-            var author = Console.ReadLine() ?? "";
+            if (string.IsNullOrWhiteSpace(o.Author))
+            {
+                Console.Write("Author: ");
+                o.Author = Console.ReadLine() ?? "";
+            }
 
             // Version
-            Console.Write("Version: ");
-            var version = Console.ReadLine();
-            if (string.IsNullOrWhiteSpace(version))
-                version = "1.0";
+            if (string.IsNullOrWhiteSpace(o.Version))
+            {
+                Console.Write("Version: ");
+                o.Version = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(o.Version))
+                    o.Version = "1.0";
+            }
 
             // Create directories
             Directory.CreateDirectory(addonPath);
@@ -94,13 +134,13 @@ namespace WardrobeAddonMaker
             // Create metadata
             var metadata = new JObject
             {
-                ["author"] = author,
-                ["description"] = $"Wardrobe Add-on for {name}.\n\nRequires both the Wardrobe and {name}.",
-                ["friendlyName"] = $"Wardrobe - {name}",
+                ["author"] = o.Author,
+                ["description"] = $"Wardrobe Add-on for {o.Name}.\n\nRequires both the Wardrobe and {o.Name}.",
+                ["friendlyName"] = $"Wardrobe - {o.Name}",
                 ["includes"] = new JArray {"Wardrobe"},
-                ["name"] = $"Wardrobe-{identifier}",
+                ["name"] = $"Wardrobe-{o.Identifier}",
                 ["tags"] = "Cheats and God Items|User Interface|Armor and Clothes",
-                ["version"] = version
+                ["version"] = o.Version
             };
             File.WriteAllText(Path.Combine(addonPath, "_metadata"), metadata.ToString(Formatting.Indented));
 
@@ -116,45 +156,59 @@ namespace WardrobeAddonMaker
             };
             File.WriteAllText(Path.Combine(wardrobePath, "wardrobe.config.patch"), patch.ToString(Formatting.Indented));
 
+            if (string.IsNullOrWhiteSpace(o.Input) || !Directory.Exists(o.Input))
+            {
+                Console.Write("Assets path: ");
+                o.Input = Console.ReadLine();
+
+                if (string.IsNullOrWhiteSpace(o.Input))
+                {
+                    Console.WriteLine("No value provided.");
+                    return;
+                }
+            }
+
+            if (!Directory.Exists(o.Input))
+            {
+                Console.WriteLine("Asset directory does not exist.");
+                return;
+            }
+
             // Call WardrobeItemFetcher
-            Console.Write("Assets path: ");
-            var assetPath = Console.ReadLine();
-            if (string.IsNullOrWhiteSpace(assetPath))
-            {
-                Console.WriteLine("No value provided.");
-                return;
-            }
-            if (!Directory.Exists(assetPath))
-            {
-                Console.WriteLine("Directory does not exist.");
-                return;
-            }
-            Fetch(assetPath, itemFile);
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Fetch(o.Input, itemFile);
+            Console.ResetColor();
 
             // Copy to mods folder
             if (Directory.Exists(_modsPath))
-                CopyHelper.CopyDirectory(addonPath, Path.Combine(_modsPath, $"Wardrobe-{identifier}"));
+                CopyHelper.CopyDirectory(addonPath, Path.Combine(_modsPath, $"Wardrobe-{o.Identifier}"));
             
             Console.WriteLine("Done!");
         }
 
-        private static void UpdateMod(string addonPath)
+        private static void UpdateMod(Options o)
         {
             Console.WriteLine("= Wardrobe Add-on Maker - Update =");
-            
-            Console.Write("Assets path: ");
-            var assetPath = Console.ReadLine();
-            if (string.IsNullOrWhiteSpace(assetPath))
+
+            if (string.IsNullOrWhiteSpace(o.Input) || !Directory.Exists(o.Input))
             {
-                Console.WriteLine("No value provided.");
-                return;
+                Console.Write("Assets path: ");
+                o.Input = Console.ReadLine();
+                if (string.IsNullOrWhiteSpace(o.Input))
+                {
+                    Console.WriteLine("No value provided.");
+                    return;
+                }
             }
-            if (!Directory.Exists(assetPath))
+
+            if (!Directory.Exists(o.Input))
             {
-                Console.WriteLine("Directory does not exist.");
+                Console.WriteLine("Asset directory does not exist.");
                 return;
             }
 
+            var addonPath = Path.Combine(_addonsPath, $"Wardrobe-{o.Identifier}");
             var wardrobePath = Path.Combine(addonPath, "wardrobe");
             var files = Directory.GetFiles(wardrobePath);
 
@@ -176,7 +230,10 @@ namespace WardrobeAddonMaker
             }
 
             // Call WardrobeItemFetcher
-            Fetch(assetPath, file);
+            Console.WriteLine();
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Fetch(o.Input, file);
+            Console.ResetColor();
 
             // Copy to mods folder
             if (Directory.Exists(_modsPath))
@@ -184,7 +241,7 @@ namespace WardrobeAddonMaker
 
             Console.WriteLine("Done!");
         }
-
+        
         // Use the WardrobeItemFetcher.
         private static void Fetch(string assetPath, string outFile)
         {
