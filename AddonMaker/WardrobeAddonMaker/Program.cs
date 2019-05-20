@@ -168,9 +168,9 @@ namespace WardrobeAddonMaker
                 }
             }
 
-            if (!Directory.Exists(o.Input))
+            if (!Directory.Exists(o.Input) || !File.Exists(o.Input))
             {
-                Console.WriteLine("Asset directory does not exist.");
+                Console.WriteLine("Asset directory or file does not exist.");
                 return;
             }
 
@@ -202,9 +202,9 @@ namespace WardrobeAddonMaker
                 }
             }
 
-            if (!Directory.Exists(o.Input))
+            if (!Directory.Exists(o.Input) || !File.Exists(o.Input))
             {
-                Console.WriteLine("Asset directory does not exist.");
+                Console.WriteLine("Asset directory or file does not exist.");
                 return;
             }
 
