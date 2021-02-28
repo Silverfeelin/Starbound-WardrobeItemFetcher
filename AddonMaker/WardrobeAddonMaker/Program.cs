@@ -160,6 +160,7 @@ namespace WardrobeAddonMaker
             {
                 Console.Write("Assets path: ");
                 o.Input = Console.ReadLine();
+                o.Input = o.Input?.Replace("\"", string.Empty);
 
                 if (string.IsNullOrWhiteSpace(o.Input))
                 {
